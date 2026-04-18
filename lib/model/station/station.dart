@@ -10,22 +10,4 @@ class Station {
     required this.latitude,
     required this.longitude,
   });
-
-  factory Station.fromMap(Map<String, dynamic> map) {
-    return Station(
-      id: map['id'],
-      name: map['name'],
-      latitude: map['latitude'],
-      longitude: map['longitude'],
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'latitude': latitude,
-      'longitude': longitude,
-    };
-  }
 }

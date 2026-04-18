@@ -1,7 +1,6 @@
 enum SubscriptionStatus {
   active,
-  expired,
-  cancelled,
+  inactive,
 }
 
 class Subscription {
@@ -20,26 +19,4 @@ class Subscription {
     required this.endDate,
     required this.status,
   });
-
-  factory Subscription.fromMap(Map<String, dynamic> map) {
-    return Subscription(
-      id: map['id'],
-      userId: map['userId'],
-      planId: map['planId'],
-      startDate: DateTime.parse(map['startDate']),
-      endDate: DateTime.parse(map['endDate']),
-      status: SubscriptionStatus.values.byName(map['status']),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'userId': userId,
-      'planId': planId,
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
-      'status': status.name,
-    };
-  }
 }

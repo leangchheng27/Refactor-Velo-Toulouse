@@ -1,7 +1,6 @@
 enum PaymentStatus {
   pending,
   success,
-  failed,
 }
 
 enum PaymentMethod {
@@ -27,28 +26,4 @@ class Payment {
     required this.status,
     required this.paidAt,
   });
-
-  factory Payment.fromMap(Map<String, dynamic> map) {
-    return Payment(
-      id: map['id'],
-      userId: map['userId'],
-      subscriptionId: map['subscriptionId'],
-      amount: map['amount'],
-      method: PaymentMethod.values.byName(map['method']),
-      status: PaymentStatus.values.byName(map['status']),
-      paidAt: DateTime.parse(map['paidAt']),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'userId': userId,
-      'subscriptionId': subscriptionId,
-      'amount': amount,
-      'method': method.name,
-      'status': status.name,
-      'paidAt': paidAt.toIso8601String(),
-    };
-  }
 }
