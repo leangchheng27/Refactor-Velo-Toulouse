@@ -1,13 +1,19 @@
+enum BikeStatus {
+  available,
+  inUse,
+  maintenance,
+}
+
 class Bike {
   final String id;
   final String stationId;
   final int slotNumber;
-  final bool isAvailable;
+  final BikeStatus status;
 
   Bike({
     required this.id,
     required this.stationId,
     required this.slotNumber,
-    required this.isAvailable,
+    required this.status,
   });
 }

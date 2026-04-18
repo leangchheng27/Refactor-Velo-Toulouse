@@ -1,7 +1,6 @@
 enum PaymentStatus {
   pending,
   success,
-  failed,
 }
 
 enum PaymentMethod {
@@ -11,6 +10,7 @@ enum PaymentMethod {
 
 class Payment {
   final String id;
+  final String userId;
   final String subscriptionId;
   final double amount;
   final PaymentMethod method;
@@ -19,6 +19,7 @@ class Payment {
 
   Payment({
     required this.id,
+    required this.userId,
     required this.subscriptionId,
     required this.amount,
     required this.method,

@@ -1,11 +1,11 @@
 enum SubscriptionStatus {
   active,
-  expired,
-  cancelled,
+  inactive,
 }
 
 class Subscription {
   final String id;
+  final String userId;
   final String planId;
   final DateTime startDate;
   final DateTime endDate;
@@ -13,6 +13,7 @@ class Subscription {
 
   Subscription({
     required this.id,
+    required this.userId,
     required this.planId,
     required this.startDate,
     required this.endDate,
