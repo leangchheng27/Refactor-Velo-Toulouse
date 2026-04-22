@@ -195,16 +195,11 @@ class _StationScreenBodyState extends State<_StationScreenBody> {
 
   Widget _buildSuccessContent(
       BuildContext context, StationViewModel viewModel, String stationName) {
-    final allBikes = (viewModel.bikes.data ?? []).toList()
-      ..sort((a, b) {
-        if (a.status == BikeStatus.available &&
-            b.status != BikeStatus.available) return -1;
-        if (a.status != BikeStatus.available &&
-            b.status == BikeStatus.available) return 1;
-        return a.slotNumber.compareTo(b.slotNumber);
-      });
-    final availableBikes =
-        allBikes.where((bike) => bike.status == BikeStatus.available).length;
+    final availableBikeList = (viewModel.bikes.data ?? [])
+        .where((bike) => bike.status == BikeStatus.available)
+        .toList()
+      ..sort((a, b) => a.slotNumber.compareTo(b.slotNumber));
+    final availableBikes = availableBikeList.length;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -310,18 +305,18 @@ class _StationScreenBodyState extends State<_StationScreenBody> {
               ),
             ),
             const SizedBox(height: 18),
-            if (allBikes.isEmpty)
+            if (availableBikeList.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 28),
                 child: Center(
                   child: Text(
-                    'No bikes at this station.',
+                    'No available bikes at this station.',
                     style: TextStyle(color: Colors.black54),
                   ),
                 ),
               )
             else
-              ...allBikes.map((bike) {
+              ...availableBikeList.map((bike) {
                 return BikeCardWidget(
                   bike: bike,
                   onBook: () => _onBookPressed(bike),

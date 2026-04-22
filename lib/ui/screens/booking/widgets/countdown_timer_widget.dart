@@ -25,29 +25,39 @@ class CountdownTimerWidget extends StatelessWidget {
                 color: const Color(0xFFFF9800),
               ),
             ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '$countdown',
-                  style: const TextStyle(
-                    fontSize: 38,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF2E2730),
+            Positioned.fill(
+              child: Center(
+                child: SizedBox(
+                  width: 116,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$countdown',
+                        style: const TextStyle(
+                          fontSize: 44,
+                          height: 1,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF2E2730),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'SECONDS TO UNLOCK',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 8,
+                          height: 1,
+                          letterSpacing: 1.1,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF8A7682),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 2),
-                const Text(
-                  'SECONDS TO UNLOCK',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 8,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF8A7682),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),

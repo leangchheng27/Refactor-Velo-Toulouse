@@ -12,7 +12,7 @@ import 'data/repositories/payment/payment_repository_firebase.dart';
 import 'data/repositories/booking/booking_repository.dart';
 import 'data/repositories/booking/booking_repository_firebase.dart';
 import 'ui/states/subscription_state.dart';
-import 'ui/states/booking_state.dart';
+import 'ui/screens/booking/view_model/booking_view_model.dart';
 import 'main_common.dart';
 
 List<InheritedProvider> get devProviders {
@@ -33,8 +33,12 @@ List<InheritedProvider> get devProviders {
     ChangeNotifierProvider<SubscriptionState>(
       create: (_) => SubscriptionState(subscriptionRepository),
     ),
-    ChangeNotifierProvider<BookingState>(
-      create: (_) => BookingState(bookingRepository, bikeRepository),
+    ChangeNotifierProvider<BookingViewModel>(
+      create: (_) => BookingViewModel(
+        bookingRepository: bookingRepository,
+        bikeRepository: bikeRepository,
+        stationRepository: stationRepository,
+      ),
     ),
   ];
 }

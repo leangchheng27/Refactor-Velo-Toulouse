@@ -42,4 +42,26 @@ static const String _baseHost = 'velo-toulo-default-rtdb.firebaseio.com';
       throw Exception('Failed to update bike status (${response.statusCode})');
     }
   }
+
+  @override
+  Future<void> returnBikeToSlot(
+    String bikeId,
+    String stationId,
+    int slotNumber,
+  ) async {
+    final uri = Uri.https(_baseHost, '/bikes/$bikeId.json');
+    final response = await http.patch(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'stationId': stationId,
+        'slotNumber': slotNumber,
+        'status': BikeStatus.available.name,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to return bike to slot (${response.statusCode})');
+    }
+  }
 }

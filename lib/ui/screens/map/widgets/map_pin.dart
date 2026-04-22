@@ -3,18 +3,21 @@ import 'package:flutter/material.dart';
 class MapPinWidget extends StatelessWidget {
   final bool isSelected;
   final int availableBikeCount;
+  final String countPrefix;
+  final Color pinColor;
   final VoidCallback onTap;
 
   const MapPinWidget({
     super.key,
     this.isSelected = false,
     this.availableBikeCount = 0,
+    this.countPrefix = '',
+    this.pinColor = Colors.red,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    const pinColor = Colors.red;
     final pinSize = isSelected ? 80.0 : 40.0;
 
     return GestureDetector(
@@ -45,7 +48,7 @@ class MapPinWidget extends StatelessWidget {
                 ),
               ),
               child: Text(
-                '$availableBikeCount',
+                '$countPrefix$availableBikeCount',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: isSelected ? 18 : 14,

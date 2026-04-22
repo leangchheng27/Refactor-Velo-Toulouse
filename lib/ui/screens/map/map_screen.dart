@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import '../../../../model/booking/booking.dart';
 import '../../../utils/async_value.dart';
+import '../../screens/booking/view_model/booking_view_model.dart';
 import '../../../../data/repositories/bike/bike_repository.dart';
 import '../../../../data/repositories/station/station_repository.dart';
 import 'view_model/map_view_model.dart';
+import 'widgets/current_ride_bottom_sheet.dart';
 import 'widgets/search_bar.dart';
 import 'widgets/map_pin.dart';
 import 'widgets/station_bottom_sheet.dart';
@@ -34,7 +37,13 @@ class _MapScreenBody extends StatefulWidget {
 
 class _MapScreenBodyState extends State<_MapScreenBody> {
   static const LatLng _defaultCenter = LatLng(43.6047, 1.4442);
+  static const double _bottomNavOverlayHeight = 98;
   final MapController _mapController = MapController();
+  bool _isCurrentRideModalVisible = false;
+  bool _isOpeningCurrentRideModal = false;
+  bool _isCurrentRideHiddenByUser = false;
+  bool _isSelectingReturnStation = false;
+  String? _lastCurrentRideId;
 
   @override
   void initState() {
@@ -57,10 +66,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     final viewModel = context.read<MapViewModel>();
     final station = viewModel.pinnedStation ?? viewModel.selectedStation;
     if (station != null) {
-      _mapController.move(
-        LatLng(station.latitude, station.longitude),
-        15,
-      );
+      _mapController.move(LatLng(station.latitude, station.longitude), 15);
     }
   }
 
@@ -78,9 +84,393 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     }
   }
 
+  Future<void> _openCurrentRideModal(
+    Booking? booking,
+    MapViewModel viewModel,
+    BookingViewModel bookingViewModel,
+  ) async {
+    if (booking == null) return;
+    if (_isCurrentRideModalVisible || _isOpeningCurrentRideModal) return;
+
+    _isOpeningCurrentRideModal = true;
+    final resolvedStationName =
+        viewModel.stationNamesById[booking.stationId] ??
+        (viewModel.pinnedStation?.id == booking.stationId
+            ? viewModel.pinnedStation?.name
+            : null) ??
+        (viewModel.selectedStation?.id == booking.stationId
+            ? viewModel.selectedStation?.name
+            : null) ??
+        'Station ${booking.stationId}';
+
+    try {
+      _isCurrentRideModalVisible = true;
+
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        isDismissible: true,
+        enableDrag: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.transparent,
+        builder: (sheetContext) {
+          return CurrentRideBottomSheet(
+            stationName: resolvedStationName,
+            slotNumber: viewModel.bikeSlotNumbersById[booking.bikeId],
+            rideStartTime: booking.startTime,
+            isSelectingReturnStation: _isSelectingReturnStation,
+            isReturning: bookingViewModel.isCompletingRide,
+            onStartReturnSelection: () async {
+              if (!mounted) return;
+              viewModel.showReturnStationHintToast();
+              Navigator.of(sheetContext).pop();
+              if (!mounted) return;
+              setState(() {
+                _isSelectingReturnStation = true;
+              });
+              await viewModel.loadStations();
+            },
+          );
+        },
+      );
+
+      _isCurrentRideModalVisible = false;
+      if (!mounted) return;
+      final stillHasRide = context.read<BookingViewModel>().hasCurrentRide;
+      if (stillHasRide && !_isSelectingReturnStation) {
+        _isCurrentRideHiddenByUser = true;
+      }
+    } finally {
+      _isOpeningCurrentRideModal = false;
+    }
+  }
+
+  Future<void> _onReturnStationTapped({
+    required Booking booking,
+    required String stationId,
+    required MapViewModel viewModel,
+    required BookingViewModel bookingViewModel,
+  }) async {
+    final availableSlots = viewModel.availableDockSlotCounts[stationId] ?? 0;
+    if (availableSlots <= 0) {
+      return;
+    }
+    final slotOptions =
+        viewModel.availableDockSlotNumbersByStation[stationId] ?? <int>[];
+    if (slotOptions.isEmpty) {
+      return;
+    }
+
+    final stationName =
+        viewModel.stationNamesById[stationId] ?? 'Station $stationId';
+    int selectedSlot = slotOptions.first;
+
+    final shouldReturn = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          title: const Text('Return Bike'),
+          content: StatefulBuilder(
+            builder: (context, setDialogState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(stationName),
+                  const SizedBox(height: 8),
+                  Text('Available slots: $availableSlots'),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Select slot',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<int>(
+                    decoration: const InputDecoration(
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Color(0xFFD92B74)),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(
+                          color: Color(0xFFD92B74),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    initialValue: selectedSlot,
+                    isExpanded: true,
+                    items: slotOptions
+                        .map(
+                          (slot) => DropdownMenuItem<int>(
+                            value: slot,
+                            child: Text(
+                              'Slot ${slot.toString().padLeft(2, '0')}',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setDialogState(() {
+                        selectedSlot = value;
+                      });
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            SizedBox(
+              height: 44,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF8A00), Color(0xFFD92B74)],
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: const Text(
+                    'Return Here',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldReturn != true) {
+      return;
+    }
+
+    final rideDuration = DateTime.now().difference(booking.startTime);
+    await bookingViewModel.completeRide(
+      returnStationId: stationId,
+      returnSlotNumber: selectedSlot,
+    );
+    await viewModel.loadStations();
+
+    if (!mounted) return;
+
+    if (_isCurrentRideModalVisible) {
+      Navigator.of(context).pop();
+    }
+
+    setState(() {
+      _isSelectingReturnStation = false;
+      _isCurrentRideHiddenByUser = false;
+    });
+
+    await _showRideSummaryBottomSheet(
+      stationName: stationName,
+      rideDuration: rideDuration,
+      returnedSlot: selectedSlot,
+    );
+  }
+
+  String _formatDuration(Duration value) {
+    final hours = value.inHours.toString().padLeft(2, '0');
+    final minutes = (value.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (value.inSeconds % 60).toString().padLeft(2, '0');
+    return '$hours:$minutes:$seconds';
+  }
+
+  Future<void> _showRideSummaryBottomSheet({
+    required String stationName,
+    required Duration rideDuration,
+    required int returnedSlot,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      barrierColor: Colors.transparent,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Bike returned successfully',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF212121),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Returned at',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF757575),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        stationName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Returned slot',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF757575),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Slot ${returnedSlot.toString().padLeft(2, '0')}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Ride duration',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF757575),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatDuration(rideDuration),
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFFE53935),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 52,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF8A00), Color(0xFFD92B74)],
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Done',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _syncCurrentRideModal({
+    required bool hasCurrentRide,
+    required Booking? activeBooking,
+    required MapViewModel viewModel,
+    required BookingViewModel bookingViewModel,
+  }) {
+    final currentRideId = hasCurrentRide ? activeBooking?.id : null;
+    if (currentRideId != _lastCurrentRideId) {
+      _lastCurrentRideId = currentRideId;
+      _isCurrentRideHiddenByUser = false;
+      _isSelectingReturnStation = false;
+    }
+
+    if (!hasCurrentRide) {
+      _isCurrentRideHiddenByUser = false;
+      _isSelectingReturnStation = false;
+      if (_isCurrentRideModalVisible) {
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+
+    // Intentionally do not auto-open the current-ride modal here.
+    // It is opened only via explicit user tap on the "Current ride" chip,
+    // which prevents duplicate modal openings on rebuilds.
+  }
+
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<MapViewModel>();
+    final bookingViewModel = context.watch<BookingViewModel>();
+    final activeBooking = bookingViewModel.currentRide;
+    final hasCurrentRide = bookingViewModel.hasCurrentRide;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncCurrentRideModal(
+        hasCurrentRide: hasCurrentRide,
+        activeBooking: activeBooking,
+        viewModel: viewModel,
+        bookingViewModel: bookingViewModel,
+      );
+    });
+
+    final isReturnSelectionMode = hasCurrentRide && _isSelectingReturnStation;
+    final showDockSlotsOnPins = hasCurrentRide;
+    final markerCounts = showDockSlotsOnPins
+        ? viewModel.availableDockSlotCounts
+        : viewModel.availableBikeCounts;
 
     return Scaffold(
       body: GestureDetector(
@@ -95,7 +485,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
               options: MapOptions(
                 initialCenter: _defaultCenter,
                 initialZoom: 13,
-                onTap: (_, __) {
+                onTap: (tapPosition, latLng) {
                   viewModel.dismissSuggestions();
                   viewModel.dismissPinnedStation();
                 },
@@ -109,18 +499,57 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                 MarkerLayer(
                   markers: viewModel.stations.state == AsyncValueState.success
                       ? (viewModel.stations.data ?? []).map((station) {
+                          final stationId = station.id;
                           final isPinned =
-                              viewModel.pinnedStation?.id == station.id;
+                              viewModel.pinnedStation?.id == stationId;
+                          final count = markerCounts[stationId] ?? 0;
                           return Marker(
                             point: LatLng(station.latitude, station.longitude),
                             width: isPinned ? 100 : 56,
                             height: isPinned ? 100 : 56,
                             child: MapPinWidget(
                               isSelected: isPinned,
-                              availableBikeCount:
-                                  viewModel.availableBikeCounts[station.id] ??
-                                      0,
-                              onTap: () => viewModel.onPinTapped(station),
+                              availableBikeCount: count,
+                              countPrefix: showDockSlotsOnPins ? 'P' : 'B',
+                              pinColor: count > 0
+                                  ? Colors.green
+                                  : Colors.red,
+                              onTap: () {
+                                if (isReturnSelectionMode) {
+                                  bookingViewModel.validateSlotAvailability(
+                                    count,
+                                  );
+                                  if (bookingViewModel.noSlotError) {
+                                    viewModel.showPinValidationErrorToast(
+                                      MapViewModel.stationFullMessage,
+                                    );
+                                    return;
+                                  }
+                                  _onReturnStationTapped(
+                                    booking: activeBooking!,
+                                    stationId: stationId,
+                                    viewModel: viewModel,
+                                    bookingViewModel: bookingViewModel,
+                                  );
+                                  return;
+                                }
+
+                                if (!hasCurrentRide &&
+                                    bookingViewModel
+                                        .validateBikeAvailability(count)) {
+                                  viewModel.onPinTapped(station);
+                                  return;
+                                }
+
+                                if (!hasCurrentRide &&
+                                    bookingViewModel.noBikeError) {
+                                  viewModel.showPinValidationErrorToast(
+                                    MapViewModel.noBikesAvailableMessage,
+                                  );
+                                  return;
+                                }
+                                viewModel.onPinTapped(station);
+                              },
                             ),
                           );
                         }).toList()
@@ -132,23 +561,73 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
               top: 50,
               left: 16,
               right: 16,
-              child: SearchBarWidget(mapCenter: _currentMapCenter),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SearchBarWidget(mapCenter: _currentMapCenter),
+                  IgnorePointer(
+                    ignoring: true,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      child: viewModel.toastMessage == null
+                          ? const SizedBox.shrink()
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: viewModel.toastBackgroundColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.18),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    viewModel.toastMessage!,
+                                    textAlign: TextAlign.left,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             Positioned(
               left: 0,
               right: 0,
-              bottom: 0,
+              bottom: _bottomNavOverlayHeight,
               child: AnimatedSlide(
-                offset: viewModel.pinnedStation != null
+                offset: viewModel.pinnedStation != null && !hasCurrentRide
                     ? Offset.zero
                     : const Offset(0, 1),
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOutCubic,
-                child: viewModel.pinnedStation != null
+                child: viewModel.pinnedStation != null && !hasCurrentRide
                     ? StationBottomSheet(
                         station: viewModel.pinnedStation!,
-                        availableBikeCount: viewModel.availableBikeCounts[
-                                viewModel.pinnedStation!.id] ??
+                        availableBikeCount:
+                            viewModel.availableBikeCounts[viewModel
+                                .pinnedStation!
+                                .id] ??
                             0,
                         onDismiss: viewModel.dismissPinnedStation,
                       )
@@ -167,10 +646,78 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                   color: Colors.red.shade600,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Text(
                       viewModel.stations.error.toString(),
                       style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            if (hasCurrentRide &&
+                !_isCurrentRideModalVisible &&
+                !_isSelectingReturnStation)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 20,
+                child: Center(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: () {
+                        if (_isCurrentRideModalVisible ||
+                            _isOpeningCurrentRideModal) {
+                          return;
+                        }
+                        setState(() {
+                          _isCurrentRideHiddenByUser = false;
+                        });
+                        _openCurrentRideModal(
+                          activeBooking,
+                          viewModel,
+                          bookingViewModel,
+                        );
+                      },
+                      child: Ink(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.14),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.directions_bike,
+                              size: 16,
+                              color: Color(0xFFE53935),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Current ride',
+                              style: TextStyle(
+                                color: Color(0xFF212121),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),

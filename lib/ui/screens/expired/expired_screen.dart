@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../utils/async_value.dart';
 import '../../../../model/bike/bike.dart';
-import '../../states/booking_state.dart';
+import '../../screens/booking/view_model/booking_view_model.dart';
 import '../station/station_screen.dart';
 import 'widgets/expired_header_widget.dart';
 import 'widgets/station_info_box_widget.dart';
@@ -21,7 +20,7 @@ class ExpiredScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bookingState = context.watch<BookingState>();
+    final bookingViewModel = context.watch<BookingViewModel>();
     final displayStationName = stationName ?? 'Station ${bike.stationId}';
     final stationLabel = displayStationName.toUpperCase();
 
@@ -74,7 +73,7 @@ class ExpiredScreen extends StatelessWidget {
                         title: 'Cancel booking',
                         subtitle: 'No charge applied. Your Pass remains active.',
                         onTap: () async {
-                          await context.read<BookingState>().cancelBooking();
+                          await context.read<BookingViewModel>().cancelBooking();
                           if (context.mounted) {
                             Navigator.popUntil(
                               context,
@@ -83,11 +82,10 @@ class ExpiredScreen extends StatelessWidget {
                           }
                         },
                       ),
-                      if (bookingState.activeBooking.state ==
-                          AsyncValueState.error) ...[
+                      if (bookingViewModel.errorMessage != null) ...[
                         const SizedBox(height: 12),
                         Text(
-                          bookingState.activeBooking.error.toString(),
+                          bookingViewModel.errorMessage!,
                           style: const TextStyle(
                             color: Colors.red,
                             fontSize: 12,

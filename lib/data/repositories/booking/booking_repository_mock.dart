@@ -11,6 +11,8 @@ class BookingRepositoryMock implements BookingRepository {
       userId: booking.userId,
       bikeId: booking.bikeId,
       stationId: booking.stationId,
+      pickedUpStation: booking.pickedUpStation,
+      pickedUpSlot: booking.pickedUpSlot,
       status: BookingStatus.pending,
       unlockAttempts: 0,
       startTime: DateTime.now(),
@@ -21,7 +23,7 @@ class BookingRepositoryMock implements BookingRepository {
   }
 
   @override
-  Future<Booking?> fetchActiveBooking(String userId) async {
+  Future<Booking?> fetchActiveBooking(String userId, {bool forceFetch = false}) async {
     try {
       return _bookings.firstWhere(
         (b) => b.userId == userId &&
@@ -42,6 +44,8 @@ class BookingRepositoryMock implements BookingRepository {
         userId: _bookings[index].userId,
         bikeId: _bookings[index].bikeId,
         stationId: _bookings[index].stationId,
+        pickedUpStation: _bookings[index].pickedUpStation,
+        pickedUpSlot: _bookings[index].pickedUpSlot,
         status: status,
         unlockAttempts: _bookings[index].unlockAttempts,
         startTime: _bookings[index].startTime,
@@ -59,6 +63,8 @@ class BookingRepositoryMock implements BookingRepository {
         userId: _bookings[index].userId,
         bikeId: _bookings[index].bikeId,
         stationId: _bookings[index].stationId,
+        pickedUpStation: _bookings[index].pickedUpStation,
+        pickedUpSlot: _bookings[index].pickedUpSlot,
         status: _bookings[index].status,
         unlockAttempts: currentAttempts + 1,
         startTime: _bookings[index].startTime,

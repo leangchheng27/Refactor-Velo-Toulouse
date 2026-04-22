@@ -27,4 +27,21 @@ class BikeRepositoryMock implements BikeRepository {
       );
     }
   }
+
+  @override
+  Future<void> returnBikeToSlot(
+    String bikeId,
+    String stationId,
+    int slotNumber,
+  ) async {
+    final index = _bikes.indexWhere((b) => b.id == bikeId);
+    if (index != -1) {
+      _bikes[index] = Bike(
+        id: _bikes[index].id,
+        stationId: stationId,
+        slotNumber: slotNumber,
+        status: BikeStatus.available,
+      );
+    }
+  }
 }

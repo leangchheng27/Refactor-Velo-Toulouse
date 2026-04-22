@@ -14,6 +14,17 @@ class MapViewModel extends ChangeNotifier {
   Timer? _debounce;
   int _searchRequestId = 0;
 
+  static const String returnStationHintMessage =
+      'Select a station on the map to return your bike';
+  static const String noBikesAvailableMessage =
+      'No bikes available at this station';
+  static const String stationFullMessage =
+      'This station is full, please select another station';
+
+  Timer? _toastTimer;
+  String? _toastMessage;
+  Color _toastBackgroundColor = Colors.transparent;
+
   MapViewModel(this._stationRepository, this._bikeRepository);
 
   AsyncValue<List<Station>> _stations = AsyncValue.loading();
@@ -22,6 +33,10 @@ class MapViewModel extends ChangeNotifier {
   Station? selectedStation;
   Station? pinnedStation;
   final Map<String, int> availableBikeCounts = {};
+  final Map<String, int> availableDockSlotCounts = {};
+  final Map<String, List<int>> availableDockSlotNumbersByStation = {};
+  final Map<String, int> bikeSlotNumbersById = {};
+  final Map<String, String> stationNamesById = {};
 
   String searchQuery = '';
   bool showSuggestions = false;
@@ -30,13 +45,52 @@ class MapViewModel extends ChangeNotifier {
   AsyncValue<List<Station>> get stations => isSearchActive ? _filteredStations : _stations;
   AsyncValue<List<Station>> get suggestions => _suggestions;
 
+  String? get toastMessage => _toastMessage;
+  Color get toastBackgroundColor => _toastBackgroundColor;
+
+  void showToast(
+    String message, {
+    required Color backgroundColor,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    _toastTimer?.cancel();
+    _toastMessage = message;
+    _toastBackgroundColor = backgroundColor;
+    notifyListeners();
+
+    _toastTimer = Timer(duration, () {
+      _toastMessage = null;
+      notifyListeners();
+    });
+  }
+
+  void showReturnStationHintToast() {
+    showToast(
+      returnStationHintMessage,
+      backgroundColor: Colors.black.withValues(alpha: 0.88),
+    );
+  }
+
+  void showPinValidationErrorToast(String message) {
+    showToast(message, backgroundColor: Colors.red.shade600);
+  }
+
+  bool hasAvailableBikes(String stationId) {
+    return (availableBikeCounts[stationId] ?? 0) > 0;
+  }
+
+  bool hasAvailableDockSlots(String stationId) {
+    return (availableDockSlotCounts[stationId] ?? 0) > 0;
+  }
+
   Future<void> loadStations() async {
     _stations = AsyncValue.loading();
     notifyListeners();
 
     try {
       final stations = await _stationRepository.fetchStations();
-      await _loadAvailableBikeCounts(stations);
+      _loadStationNames(stations);
+      await _loadStationCounts(stations);
       _stations = AsyncValue.success(stations);
     } catch (e) {
       _stations = AsyncValue.error(e);
@@ -88,17 +142,47 @@ class MapViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadAvailableBikeCounts(List<Station> stations) async {
+  void _loadStationNames(List<Station> stations) {
+    stationNamesById
+      ..clear()
+      ..addEntries(stations.map((station) => MapEntry(station.id, station.name)));
+  }
+
+  Future<void> _loadStationCounts(List<Station> stations) async {
     availableBikeCounts.clear();
+    availableDockSlotCounts.clear();
+    availableDockSlotNumbersByStation.clear();
+    bikeSlotNumbersById.clear();
 
     final results = await Future.wait(
       stations.map((s) => _bikeRepository.fetchBikesByStation(s.id)),
     );
 
     for (var i = 0; i < stations.length; i++) {
-      availableBikeCounts[stations[i].id] = results[i]
+      final bikes = results[i];
+      final station = stations[i];
+      final stationId = station.id;
+      final availableBikes = bikes
           .where((bike) => bike.status == BikeStatus.available)
           .length;
+
+      availableBikeCounts[stationId] = availableBikes;
+      final occupiedSlots = bikes
+          .where((bike) => bike.status == BikeStatus.available)
+          .map((bike) => bike.slotNumber)
+          .toSet();
+      final freeSlots = <int>[];
+      for (var slot = 1; slot <= station.totalDocks; slot++) {
+        if (!occupiedSlots.contains(slot)) {
+          freeSlots.add(slot);
+        }
+      }
+      availableDockSlotCounts[stationId] = freeSlots.length;
+      availableDockSlotNumbersByStation[stationId] = freeSlots;
+
+      for (final bike in bikes) {
+        bikeSlotNumbersById[bike.id] = bike.slotNumber;
+      }
     }
   }
 
@@ -160,6 +244,7 @@ class MapViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _debounce?.cancel();
+    _toastTimer?.cancel();
     super.dispose();
   }
 }
