@@ -41,7 +41,6 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
   final MapController _mapController = MapController();
   bool _isCurrentRideModalVisible = false;
   bool _isOpeningCurrentRideModal = false;
-  bool _isCurrentRideHiddenByUser = false;
   bool _isSelectingReturnStation = false;
   String? _lastCurrentRideId;
 
@@ -136,10 +135,6 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
 
       _isCurrentRideModalVisible = false;
       if (!mounted) return;
-      final stillHasRide = context.read<BookingViewModel>().hasCurrentRide;
-      if (stillHasRide && !_isSelectingReturnStation) {
-        _isCurrentRideHiddenByUser = true;
-      }
     } finally {
       _isOpeningCurrentRideModal = false;
     }
@@ -152,12 +147,15 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     required BookingViewModel bookingViewModel,
   }) async {
     final availableSlots = viewModel.availableDockSlotCounts[stationId] ?? 0;
-    if (availableSlots <= 0) {
-      return;
-    }
     final slotOptions =
         viewModel.availableDockSlotNumbersByStation[stationId] ?? <int>[];
-    if (slotOptions.isEmpty) {
+    if (!bookingViewModel.canProceedWithReturnStationTap(
+      availableSlotCount: availableSlots,
+      slotOptions: slotOptions,
+    )) {
+      if (bookingViewModel.noSlotError) {
+        viewModel.showPinValidationErrorToast(MapViewModel.stationFullMessage);
+      }
       return;
     }
 
@@ -261,7 +259,9 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
       return;
     }
 
-    final rideDuration = DateTime.now().difference(booking.startTime);
+    final rideDuration = bookingViewModel.calculateRideDuration(
+      booking.startTime,
+    );
     await bookingViewModel.completeRide(
       returnStationId: stationId,
       returnSlotNumber: selectedSlot,
@@ -276,7 +276,6 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
 
     setState(() {
       _isSelectingReturnStation = false;
-      _isCurrentRideHiddenByUser = false;
     });
 
     await _showRideSummaryBottomSheet(
@@ -431,22 +430,16 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     final currentRideId = hasCurrentRide ? activeBooking?.id : null;
     if (currentRideId != _lastCurrentRideId) {
       _lastCurrentRideId = currentRideId;
-      _isCurrentRideHiddenByUser = false;
       _isSelectingReturnStation = false;
     }
 
     if (!hasCurrentRide) {
-      _isCurrentRideHiddenByUser = false;
       _isSelectingReturnStation = false;
       if (_isCurrentRideModalVisible) {
         Navigator.of(context).pop();
       }
       return;
     }
-
-    // Intentionally do not auto-open the current-ride modal here.
-    // It is opened only via explicit user tap on the "Current ride" chip,
-    // which prevents duplicate modal openings on rebuilds.
   }
 
   @override
@@ -503,53 +496,107 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                           final isPinned =
                               viewModel.pinnedStation?.id == stationId;
                           final count = markerCounts[stationId] ?? 0;
+                          final showSelectedRideLabel =
+                              hasCurrentRide && isPinned && count > 0;
                           return Marker(
                             point: LatLng(station.latitude, station.longitude),
-                            width: isPinned ? 100 : 56,
-                            height: isPinned ? 100 : 56,
-                            child: MapPinWidget(
-                              isSelected: isPinned,
-                              availableBikeCount: count,
-                              countPrefix: showDockSlotsOnPins ? 'P' : 'B',
-                              pinColor: count > 0
-                                  ? Colors.green
-                                  : Colors.red,
-                              onTap: () {
-                                if (isReturnSelectionMode) {
-                                  bookingViewModel.validateSlotAvailability(
-                                    count,
-                                  );
-                                  if (bookingViewModel.noSlotError) {
-                                    viewModel.showPinValidationErrorToast(
-                                      MapViewModel.stationFullMessage,
-                                    );
-                                    return;
-                                  }
-                                  _onReturnStationTapped(
-                                    booking: activeBooking!,
-                                    stationId: stationId,
-                                    viewModel: viewModel,
-                                    bookingViewModel: bookingViewModel,
-                                  );
-                                  return;
-                                }
+                            width: showSelectedRideLabel
+                                ? 180
+                                : (isPinned ? 100 : 56),
+                            height: showSelectedRideLabel
+                                ? 130
+                                : (isPinned ? 100 : 56),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (showSelectedRideLabel)
+                                    IgnorePointer(
+                                      child: Container(
+                                        margin: const EdgeInsets.only(bottom: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(10),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.12,
+                                              ),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              station.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF212121),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Available slots: $count',
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xFF616161),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  MapPinWidget(
+                                    isSelected: isPinned,
+                                    availableBikeCount: count,
+                                    countPrefix: showDockSlotsOnPins ? 'P' : 'B',
+                                    pinColor: count > 0
+                                        ? Colors.green
+                                        : Colors.red,
+                                    onTap: () {
+                                      if (isReturnSelectionMode) {
+                                        _onReturnStationTapped(
+                                          booking: activeBooking!,
+                                          stationId: stationId,
+                                          viewModel: viewModel,
+                                          bookingViewModel: bookingViewModel,
+                                        );
+                                        return;
+                                      }
 
-                                if (!hasCurrentRide &&
-                                    bookingViewModel
-                                        .validateBikeAvailability(count)) {
-                                  viewModel.onPinTapped(station);
-                                  return;
-                                }
+                                      if (hasCurrentRide && count <= 0) {
+                                        viewModel.showPinValidationErrorToast(
+                                          MapViewModel.stationFullMessage,
+                                        );
+                                      }
 
-                                if (!hasCurrentRide &&
-                                    bookingViewModel.noBikeError) {
-                                  viewModel.showPinValidationErrorToast(
-                                    MapViewModel.noBikesAvailableMessage,
-                                  );
-                                  return;
-                                }
-                                viewModel.onPinTapped(station);
-                              },
+                                      if (!bookingViewModel
+                                          .canProceedWithStationTapForBooking(
+                                            hasCurrentRide: hasCurrentRide,
+                                            availableBikeCount: count,
+                                          )) {
+                                        viewModel.showPinValidationErrorToast(
+                                          MapViewModel.noBikesAvailableMessage,
+                                        );
+                                        return;
+                                      }
+                                      viewModel.onPinTapped(station);
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         }).toList()
@@ -673,9 +720,6 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                             _isOpeningCurrentRideModal) {
                           return;
                         }
-                        setState(() {
-                          _isCurrentRideHiddenByUser = false;
-                        });
                         _openCurrentRideModal(
                           activeBooking,
                           viewModel,

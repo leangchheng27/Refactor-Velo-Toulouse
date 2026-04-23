@@ -101,6 +101,16 @@ class BookingViewModel extends ChangeNotifier {
       return availableBikeCount > 0;
     }
 
+      /// Centralized station-tap validation for booking flow.
+      /// Keeps MapScreen focused on UI decisions and toast presentation.
+      bool canProceedWithStationTapForBooking({
+        required bool hasCurrentRide,
+        required int availableBikeCount,
+      }) {
+        if (hasCurrentRide) return true;
+        return validateBikeAvailability(availableBikeCount);
+      }
+
     /// Validates if a return station has available dock slots.
     /// Called by UI (MapScreen) during return station selection.
     /// Returns true if slots are available, false otherwise.
@@ -109,6 +119,24 @@ class BookingViewModel extends ChangeNotifier {
       notifyListeners();
       return availableSlotCount > 0;
     }
+
+      /// Centralized return-station validation.
+      /// Preserves previous behavior:
+      /// - `availableSlotCount <= 0` sets `_noSlotError` and returns false.
+      /// - empty slot options returns false without setting `_noSlotError`.
+      bool canProceedWithReturnStationTap({
+        required int availableSlotCount,
+        required List<int> slotOptions,
+      }) {
+        if (!validateSlotAvailability(availableSlotCount)) {
+          return false;
+        }
+        return slotOptions.isNotEmpty;
+      }
+
+      Duration calculateRideDuration(DateTime rideStartTime) {
+        return DateTime.now().difference(rideStartTime);
+      }
 
     /// Clears all validation error flags.
     void clearValidationErrors() {
