@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../model/bike/bike.dart';
+import '../../states/booking_state.dart';
+import '../../../../utils/async_value.dart';
 import 'view_model/booking_view_model.dart';
 import '../expired/expired_screen.dart';
 import '../../../main_common.dart';
@@ -26,11 +28,14 @@ class BookingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _BookingScreenBody(
-      bike: bike,
-      stationName: stationName,
-      planLabel: planLabel,
-      userId: userId,
+    return ChangeNotifierProvider(
+      create: (_) => BookingViewModel(),
+      child: _BookingScreenBody(
+        bike: bike,
+        stationName: stationName,
+        planLabel: planLabel,
+        userId: userId,
+      ),
     );
   }
 }
@@ -111,9 +116,11 @@ class _BookingScreenBodyState extends State<_BookingScreenBody> {
                       PlanInfoWidget(planLabel: viewModel.planLabel),
                       const SizedBox(height: 16),
                       BookingActionsWidget(
-                        isLoading: viewModel.isLoading,
+                        isLoading: context.watch<BookingState>().activeBooking.state ==
+                            AsyncValueState.loading,
                         onUnlock: () async {
-                          await context.read<BookingViewModel>().confirmBooking(
+                          context.read<BookingViewModel>().cancelCountdown();
+                          await context.read<BookingState>().confirmBooking(
                                 userId: widget.userId,
                                 bike: widget.bike,
                               );

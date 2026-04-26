@@ -4,9 +4,8 @@ import 'ui/screens/map/map_screen.dart';
 import 'ui/screens/plan/plan_screen.dart';
 import 'ui/screens/profile/profile_screen.dart';
 import 'ui/screens/splash/splash_screen.dart';
-import 'model/booking/booking.dart';
+import 'ui/states/booking_state.dart';
 import 'ui/states/subscription_state.dart';
-import 'ui/screens/booking/view_model/booking_view_model.dart';
 
 void mainCommon(List<InheritedProvider> providers) {
   runApp(
@@ -55,12 +54,12 @@ class _MyAppState extends State<MyApp> {
     if (!mounted) return;
     
     final subscriptionState = context.read<SubscriptionState>();
-    final bookingViewModel = context.read<BookingViewModel>();
+    final bookingState = context.read<BookingState>();
     
     // Load subscription and booking data on app start
     await Future.wait([
       subscriptionState.loadActiveSubscription(_currentUserId),
-      bookingViewModel.loadActiveBooking(_currentUserId),
+      bookingState.loadActiveBooking(_currentUserId),
     ]);
   }
 
@@ -68,11 +67,8 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     const activeColor = Color(0xFFFF7A1A);
     const inactiveColor = Color(0xFF9AA0A6);
-    final bookingViewModel = context.watch<BookingViewModel>();
-    final activeBooking = bookingViewModel.currentRide;
-    final hasCurrentRide = activeBooking != null &&
-        activeBooking.status != BookingStatus.cancelled &&
-        activeBooking.status != BookingStatus.completed;
+    final bookingState = context.watch<BookingState>();
+    final hasCurrentRide = bookingState.hasCurrentRide;
     final shouldHideBottomNav = _currentIndex == 1 && hasCurrentRide;
 
     return Scaffold(

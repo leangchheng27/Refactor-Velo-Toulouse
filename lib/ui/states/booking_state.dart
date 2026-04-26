@@ -18,6 +18,8 @@ class BookingState extends ChangeNotifier {
 
   AsyncValue<Booking?> _activeBooking = AsyncValue.success(null);
   bool _isCompletingRide = false;
+  bool noBikeError = false;
+  bool noSlotError = false;
 
   AsyncValue<Booking?> get activeBooking => _activeBooking;
   Booking? get activeBookingData => _activeBooking.data;
@@ -28,6 +30,46 @@ class BookingState extends ChangeNotifier {
     return booking != null &&
         booking.status != BookingStatus.cancelled &&
         booking.status != BookingStatus.completed;
+  }
+
+  bool validateBikeAvailability(int availableBikeCount) {
+    noBikeError = availableBikeCount <= 0;
+    notifyListeners();
+    return availableBikeCount > 0;
+  }
+
+  bool canProceedWithStationTapForBooking({
+    required bool hasCurrentRide,
+    required int availableBikeCount,
+  }) {
+    if (hasCurrentRide) return true;
+    return validateBikeAvailability(availableBikeCount);
+  }
+
+  bool validateSlotAvailability(int availableSlotCount) {
+    noSlotError = availableSlotCount <= 0;
+    notifyListeners();
+    return availableSlotCount > 0;
+  }
+
+  bool canProceedWithReturnStationTap({
+    required int availableSlotCount,
+    required List<int> slotOptions,
+  }) {
+    if (!validateSlotAvailability(availableSlotCount)) {
+      return false;
+    }
+    return slotOptions.isNotEmpty;
+  }
+
+  Duration calculateRideDuration(DateTime rideStartTime) {
+    return DateTime.now().difference(rideStartTime);
+  }
+
+  void clearValidationErrors() {
+    noBikeError = false;
+    noSlotError = false;
+    notifyListeners();
   }
 
   Future<void> loadActiveBooking(String userId) async {
@@ -55,6 +97,26 @@ class BookingState extends ChangeNotifier {
       _activeBooking = AsyncValue.error(e);
     }
     notifyListeners();
+  }
+
+  Future<void> confirmBooking({
+    required String userId,
+    required Bike bike,
+  }) async {
+    await createBooking(
+      Booking(
+        id: '',
+        userId: userId,
+        bikeId: bike.id,
+        stationId: bike.stationId,
+        pickedUpStation: bike.stationId,
+        pickedUpSlot: bike.slotNumber,
+        status: BookingStatus.active,
+        unlockAttempts: 0,
+        startTime: DateTime.now(),
+        endTime: null,
+      ),
+    );
   }
 
   Future<void> cancelBooking() async {

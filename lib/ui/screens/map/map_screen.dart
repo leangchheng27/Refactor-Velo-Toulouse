@@ -4,7 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../../../model/booking/booking.dart';
 import '../../../utils/async_value.dart';
-import '../../screens/booking/view_model/booking_view_model.dart';
+import '../../states/booking_state.dart';
 import '../../../../data/repositories/bike/bike_repository.dart';
 import '../../../../data/repositories/station/station_repository.dart';
 import 'view_model/map_view_model.dart';
@@ -86,7 +86,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
   Future<void> _openCurrentRideModal(
     Booking? booking,
     MapViewModel viewModel,
-    BookingViewModel bookingViewModel,
+    BookingState bookingState,
   ) async {
     if (booking == null) return;
     if (_isCurrentRideModalVisible || _isOpeningCurrentRideModal) return;
@@ -118,7 +118,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
             slotNumber: viewModel.bikeSlotNumbersById[booking.bikeId],
             rideStartTime: booking.startTime,
             isSelectingReturnStation: _isSelectingReturnStation,
-            isReturning: bookingViewModel.isCompletingRide,
+            isReturning: bookingState.isCompletingRide,
             onStartReturnSelection: () async {
               if (!mounted) return;
               viewModel.showReturnStationHintToast();
@@ -144,16 +144,16 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     required Booking booking,
     required String stationId,
     required MapViewModel viewModel,
-    required BookingViewModel bookingViewModel,
+    required BookingState bookingState,
   }) async {
     final availableSlots = viewModel.availableDockSlotCounts[stationId] ?? 0;
     final slotOptions =
         viewModel.availableDockSlotNumbersByStation[stationId] ?? <int>[];
-    if (!bookingViewModel.canProceedWithReturnStationTap(
+    if (!bookingState.canProceedWithReturnStationTap(
       availableSlotCount: availableSlots,
       slotOptions: slotOptions,
     )) {
-      if (bookingViewModel.noSlotError) {
+      if (bookingState.noSlotError) {
         viewModel.showPinValidationErrorToast(MapViewModel.stationFullMessage);
       }
       return;
@@ -259,10 +259,10 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
       return;
     }
 
-    final rideDuration = bookingViewModel.calculateRideDuration(
+    final rideDuration = bookingState.calculateRideDuration(
       booking.startTime,
     );
-    await bookingViewModel.completeRide(
+    await bookingState.completeRide(
       returnStationId: stationId,
       returnSlotNumber: selectedSlot,
     );
@@ -425,7 +425,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     required bool hasCurrentRide,
     required Booking? activeBooking,
     required MapViewModel viewModel,
-    required BookingViewModel bookingViewModel,
+    required BookingState bookingState,
   }) {
     final currentRideId = hasCurrentRide ? activeBooking?.id : null;
     if (currentRideId != _lastCurrentRideId) {
@@ -445,9 +445,9 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<MapViewModel>();
-    final bookingViewModel = context.watch<BookingViewModel>();
-    final activeBooking = bookingViewModel.currentRide;
-    final hasCurrentRide = bookingViewModel.hasCurrentRide;
+    final bookingState = context.watch<BookingState>();
+    final activeBooking = bookingState.activeBookingData;
+    final hasCurrentRide = bookingState.hasCurrentRide;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -455,7 +455,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
         hasCurrentRide: hasCurrentRide,
         activeBooking: activeBooking,
         viewModel: viewModel,
-        bookingViewModel: bookingViewModel,
+        bookingState: bookingState,
       );
     });
 
@@ -571,7 +571,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                                           booking: activeBooking!,
                                           stationId: stationId,
                                           viewModel: viewModel,
-                                          bookingViewModel: bookingViewModel,
+                                          bookingState: bookingState,
                                         );
                                         return;
                                       }
@@ -582,7 +582,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                                         );
                                       }
 
-                                      if (!bookingViewModel
+                                      if (!bookingState
                                           .canProceedWithStationTapForBooking(
                                             hasCurrentRide: hasCurrentRide,
                                             availableBikeCount: count,
@@ -723,7 +723,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                         _openCurrentRideModal(
                           activeBooking,
                           viewModel,
-                          bookingViewModel,
+                          bookingState,
                         );
                       },
                       child: Ink(
