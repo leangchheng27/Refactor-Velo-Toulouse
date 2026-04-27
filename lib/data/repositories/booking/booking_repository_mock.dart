@@ -23,10 +23,14 @@ class BookingRepositoryMock implements BookingRepository {
   }
 
   @override
-  Future<Booking?> fetchActiveBooking(String userId, {bool forceFetch = false}) async {
+  Future<Booking?> fetchActiveBooking(
+    String userId, {
+    bool forceFetch = false,
+  }) async {
     try {
       return _bookings.firstWhere(
-        (b) => b.userId == userId &&
+        (b) =>
+            b.userId == userId &&
             (b.status == BookingStatus.active ||
                 b.status == BookingStatus.pending),
       );
@@ -36,7 +40,10 @@ class BookingRepositoryMock implements BookingRepository {
   }
 
   @override
-  Future<void> updateBookingStatus(String bookingId, BookingStatus status) async {
+  Future<void> updateBookingStatus(
+    String bookingId,
+    BookingStatus status,
+  ) async {
     final index = _bookings.indexWhere((b) => b.id == bookingId);
     if (index != -1) {
       _bookings[index] = Booking(
@@ -55,7 +62,10 @@ class BookingRepositoryMock implements BookingRepository {
   }
 
   @override
-  Future<void> incrementUnlockAttempts(String bookingId, int currentAttempts) async {
+  Future<void> incrementUnlockAttempts(
+    String bookingId,
+    int currentAttempts,
+  ) async {
     final index = _bookings.indexWhere((b) => b.id == bookingId);
     if (index != -1) {
       _bookings[index] = Booking(

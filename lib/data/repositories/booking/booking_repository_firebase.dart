@@ -6,7 +6,6 @@ import '../../../model/booking/booking.dart';
 import '../../dtos/booking_dto.dart';
 import 'booking_repository.dart';
 
-
 class BookingRepositoryFirebase implements BookingRepository {
   static const String _baseHost = 'velo-toulo-default-rtdb.firebaseio.com';
   final Map<String, Booking?> _cachedActiveBookingByUserId = {};
@@ -24,7 +23,10 @@ class BookingRepositoryFirebase implements BookingRepository {
 
       if (response.statusCode == 200) {
         final String newId = jsonDecode(response.body)['name'];
-        final created = BookingDTO.fromMap({...BookingDTO.toMap(booking), 'id': newId});
+        final created = BookingDTO.fromMap({
+          ...BookingDTO.toMap(booking),
+          'id': newId,
+        });
         _cachedBookingsById[created.id] = created;
         if (created.status == BookingStatus.active ||
             created.status == BookingStatus.pending) {
@@ -40,7 +42,10 @@ class BookingRepositoryFirebase implements BookingRepository {
   }
 
   @override
-  Future<Booking?> fetchActiveBooking(String userId, {bool forceFetch = false}) async {
+  Future<Booking?> fetchActiveBooking(
+    String userId, {
+    bool forceFetch = false,
+  }) async {
     if (!forceFetch && _cachedActiveBookingByUserId.containsKey(userId)) {
       return _cachedActiveBookingByUserId[userId];
     }
@@ -79,7 +84,9 @@ class BookingRepositoryFirebase implements BookingRepository {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to update booking status (${response.statusCode})');
+        throw Exception(
+          'Failed to update booking status (${response.statusCode})',
+        );
       }
 
       final cached = _cachedBookingsById[bookingId];
@@ -123,7 +130,9 @@ class BookingRepositoryFirebase implements BookingRepository {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to increment unlock attempts (${response.statusCode})');
+        throw Exception(
+          'Failed to increment unlock attempts (${response.statusCode})',
+        );
       }
 
       final cached = _cachedBookingsById[bookingId];

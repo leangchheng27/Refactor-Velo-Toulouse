@@ -43,6 +43,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
   bool _isOpeningCurrentRideModal = false;
   bool _isSelectingReturnStation = false;
   String? _lastCurrentRideId;
+  Duration? _frozenRideDuration;
 
   @override
   void initState() {
@@ -121,6 +122,9 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
             isReturning: bookingState.isCompletingRide,
             onStartReturnSelection: () async {
               if (!mounted) return;
+              _frozenRideDuration = bookingState.calculateRideDuration(
+                booking.startTime,
+              );
               viewModel.showReturnStationHintToast();
               Navigator.of(sheetContext).pop();
               if (!mounted) return;
@@ -256,12 +260,13 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     );
 
     if (shouldReturn != true) {
+      _frozenRideDuration = null;
       return;
     }
 
-    final rideDuration = bookingState.calculateRideDuration(
-      booking.startTime,
-    );
+    final rideDuration =
+        _frozenRideDuration ??
+        bookingState.calculateRideDuration(booking.startTime);
     await bookingState.completeRide(
       returnStationId: stationId,
       returnSlotNumber: selectedSlot,
@@ -277,6 +282,7 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     setState(() {
       _isSelectingReturnStation = false;
     });
+    _frozenRideDuration = null;
 
     await _showRideSummaryBottomSheet(
       stationName: stationName,
@@ -431,10 +437,12 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
     if (currentRideId != _lastCurrentRideId) {
       _lastCurrentRideId = currentRideId;
       _isSelectingReturnStation = false;
+      _frozenRideDuration = null;
     }
 
     if (!hasCurrentRide) {
       _isSelectingReturnStation = false;
+      _frozenRideDuration = null;
       if (_isCurrentRideModalVisible) {
         Navigator.of(context).pop();
       }
@@ -514,14 +522,18 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                                   if (showSelectedRideLabel)
                                     IgnorePointer(
                                       child: Container(
-                                        margin: const EdgeInsets.only(bottom: 6),
+                                        margin: const EdgeInsets.only(
+                                          bottom: 6,
+                                        ),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 8,
                                           vertical: 6,
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.white,
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                           boxShadow: [
                                             BoxShadow(
                                               color: Colors.black.withValues(
@@ -561,7 +573,9 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                                   MapPinWidget(
                                     isSelected: isPinned,
                                     availableBikeCount: count,
-                                    countPrefix: showDockSlotsOnPins ? 'P' : 'B',
+                                    countPrefix: showDockSlotsOnPins
+                                        ? 'P'
+                                        : 'B',
                                     pinColor: count > 0
                                         ? Colors.green
                                         : Colors.red,
@@ -635,7 +649,9 @@ class _MapScreenBodyState extends State<_MapScreenBody> {
                                     borderRadius: BorderRadius.circular(12),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.18),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.18,
+                                        ),
                                         blurRadius: 10,
                                         offset: const Offset(0, 6),
                                       ),

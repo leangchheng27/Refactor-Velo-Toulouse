@@ -130,7 +130,10 @@ class BookingState extends ChangeNotifier {
         BookingStatus.cancelled,
       );
       // Update bike status back to available
-      await _bikeRepository.updateBikeStatus(booking.bikeId, BikeStatus.available);
+      await _bikeRepository.updateBikeStatus(
+        booking.bikeId,
+        BikeStatus.available,
+      );
       _activeBooking = AsyncValue.success(null);
     } catch (e) {
       _activeBooking = AsyncValue.error(e);
@@ -158,7 +161,10 @@ class BookingState extends ChangeNotifier {
           returnSlotNumber,
         );
       } else {
-        await _bikeRepository.updateBikeStatus(booking.bikeId, BikeStatus.available);
+        await _bikeRepository.updateBikeStatus(
+          booking.bikeId,
+          BikeStatus.available,
+        );
       }
       await _stationRepository.applyReturnAtStation(
         returnStationId ?? booking.stationId,
@@ -168,7 +174,7 @@ class BookingState extends ChangeNotifier {
       _activeBooking = AsyncValue.error(e);
     } finally {
       _isCompletingRide = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 }
